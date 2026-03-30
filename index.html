@@ -172,7 +172,8 @@
     <div x-show="!loading" x-cloak class="space-y-2">
       <template x-for="(item, idx) in filtered" :key="item.id">
         <div class="qa-card bg-white rounded-2xl shadow-sm overflow-hidden fade-up"
-             :style="'animation-delay: ' + Math.min(idx * 30, 300) + 'ms'">
+             :id="'qa-' + item.id"
+             :style="'animation-delay: ' + Math.min(idx * 30, 300) + 'ms'"
           <!-- Question -->
           <button
             @click="toggleItem(item)"
@@ -511,25 +512,31 @@
         },
 
         scrollToAndOpen(item) {
-          // Close current, open target
+          // Close all
           this.filtered.forEach(i => i._open = false);
-          item._open = true;
 
-          // Find in filtered
+          // If not in current filter, reset filters first
           const inFiltered = this.filtered.find(i => i.id === item.id);
           if (!inFiltered) {
-            // Not in current filter - reset filters
             this.search = '';
             this.activeCat = 'all';
             this.filterItems();
-            this.$nextTick(() => {
-              const target = this.filtered.find(i => i.id === item.id);
-              if (target) target._open = true;
-            });
           }
 
-          // Scroll to top so they can find it
-          window.scrollTo({ top: 0, behavior: 'smooth' });
+          // Open target and scroll to it
+          this.$nextTick(() => {
+            const target = this.allItems.find(i => i.id === item.id);
+            if (target) target._open = true;
+            this.$nextTick(() => {
+              const el = document.getElementById('qa-' + item.id);
+              if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                // Flash highlight
+                el.classList.add('ring-2', 'ring-coral/40');
+                setTimeout(() => el.classList.remove('ring-2', 'ring-coral/40'), 1500);
+              }
+            });
+          });
         },
       };
     }
