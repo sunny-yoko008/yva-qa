@@ -424,19 +424,11 @@
         },
 
         sortItems() {
-          if (this.sortMode === 'imp') {
-            this.allItems.sort((a, b) => {
-              const d = (parseInt(b.imp) || 0) - (parseInt(a.imp) || 0);
-              return d !== 0 ? d : (a.cat || '').localeCompare(b.cat || '');
-            });
-          } else {
-            this.allItems.sort((a, b) => (a.cat || '').localeCompare(b.cat || ''));
-          }
           this.filterItems();
         },
 
         filterItems() {
-          let items = this.allItems;
+          let items = [...this.allItems];
 
           if (this.activeCat !== 'all') {
             items = items.filter(i => i._cat === this.activeCat);
@@ -445,12 +437,24 @@
           if (this.search.trim()) {
             const terms = this.search.toLowerCase().split(/\s+/).filter(Boolean);
             items = items.filter(i => terms.every(t => i._search.includes(t)));
-            // Boost: question match > answer match
+          }
+
+          // Sort
+          if (this.search.trim()) {
+            // Search mode: relevance (question match count)
+            const terms = this.search.toLowerCase().split(/\s+/).filter(Boolean);
             items.sort((a, b) => {
               const aQ = terms.filter(t => a.q.toLowerCase().includes(t)).length;
               const bQ = terms.filter(t => b.q.toLowerCase().includes(t)).length;
               return bQ - aQ;
             });
+          } else if (this.sortMode === 'imp') {
+            items.sort((a, b) => {
+              const d = (parseInt(b.imp) || 0) - (parseInt(a.imp) || 0);
+              return d !== 0 ? d : (a.cat || '').localeCompare(b.cat || '');
+            });
+          } else {
+            items.sort((a, b) => (a.cat || '').localeCompare(b.cat || ''));
           }
 
           this.filtered = items;
