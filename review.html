@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QA レビュー | YouVoice Academy</title>
+  <link rel="icon" href="favicon.ico" type="image/x-icon">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: { extend: { colors: {
+        cream: '#FFF8F0', coral: '#FF6B6B', 'coral-hover': '#FF5252',
+        'coral-light': '#FFE8E8', warm: '#FFF0E6', 'warm-dark': '#D4A574',
+        sky: '#E8F4FD', mint: '#E8F8F0',
+      }}}
+    }
+  </script>
+  <style>
+    [x-cloak] { display: none !important; }
+    @keyframes slideLeft { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
+    @keyframes pop { 0% { transform: scale(1); } 50% { transform: scale(1.08); } 100% { transform: scale(1); } }
+    .slide-in { animation: slideLeft 0.25s ease-out; }
+    .pop { animation: pop 0.2s ease-out; }
+  </style>
+</head>
+<body class="bg-cream min-h-screen" x-data="reviewApp()" x-init="init()">
+
+  <!-- Header -->
+  <header class="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-gray-100">
+    <div class="max-w-xl mx-auto px-4 py-3">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <img src="logo.png" alt="YVA" class="h-7">
+          <span class="text-sm font-bold text-gray-600">QA レビュー</span>
+        </div>
+        <div class="flex items-center gap-3">
+          <!-- Filter -->
+          <select x-model="filter" @change="applyFilter()" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white">
+            <option value="unchecked">未確認のみ</option>
+            <option value="all">すべて</option>
+            <option value="fix">要修正のみ</option>
+            <option value="delete">削除のみ</option>
+          </select>
+          <!-- Reviewer name -->
+          <input x-model="reviewer" placeholder="名前" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 w-20 bg-white">
+        </div>
+      </div>
+      <!-- Progress bar -->
+      <div class="mt-2 flex items-center gap-2">
+        <div class="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+          <div class="h-full bg-coral rounded-full transition-all duration-300" :style="'width:' + progressPercent + '%'"></div>
+        </div>
+        <span class="text-[10px] text-gray-400" x-text="checkedCount + '/' + totalCount + ' 完了'"></span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Loading -->
+  <div x-show="loading" class="max-w-xl mx-auto px-4 py-20 text-center">
+    <div class="inline-block w-8 h-8 border-2 border-coral border-t-transparent rounded-full animate-spin"></div>
+    <p class="text-gray-400 text-sm mt-3">読み込み中...</p>
+  </div>
+
+  <!-- Card -->
+  <main x-show="!loading && currentItem" x-cloak class="max-w-xl mx-auto px-4 py-4">
+    <template x-if="currentItem">
+      <div class="slide-in" :key="currentIdx">
+        <!-- Counter + nav -->
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-xs text-gray-400">
+            <span x-text="currentIdxInList + 1"></span> / <span x-text="filteredItems.length"></span>
+          </span>
+          <div class="flex gap-1">
+            <button @click="prev()" :disabled="currentIdxInList === 0" class="px-2 py-1 rounded-lg text-xs text-gray-400 hover:bg-gray-100 disabled:opacity-30">
+              ← 前
+            </button>
+            <button @click="next()" :disabled="currentIdxInList >= filteredItems.length - 1" class="px-2 py-1 rounded-lg text-xs text-gray-400 hover:bg-gray-100 disabled:opacity-30">
+              次 →
+            </button>
+          </div>
+        </div>
+
+        <!-- Category badge -->
+        <div class="flex flex-wrap gap-1.5 mb-3">
+          <span class="px-2.5 py-1 bg-warm rounded-full text-[11px] text-warm-dark font-medium" x-text="currentItem.cat"></span>
+          <span class="px-2.5 py-1 bg-gray-100 rounded-full text-[11px] text-gray-500" x-text="currentItem.sub"></span>
+          <span
+            :class="currentItem.level === '入門' ? 'bg-mint text-green-700' : currentItem.level === '初級' ? 'bg-sky text-blue-700' : 'bg-purple-50 text-purple-700'"
+            class="px-2.5 py-1 rounded-full text-[11px]"
+            x-text="currentItem.level"
+          ></span>
+          <span class="px-2.5 py-1 bg-coral-light rounded-full text-[11px] text-coral" x-text="'重要度 ' + currentItem.imp"></span>
+        </div>
+
+        <!-- Question -->
+        <div class="bg-white rounded-2xl p-5 shadow-sm mb-3">
+          <div class="flex items-start gap-3">
+            <span class="w-7 h-7 rounded-full bg-coral-light text-coral flex items-center justify-center text-sm font-bold flex-shrink-0">Q</span>
+            <p class="text-[15px] text-gray-800 font-medium leading-relaxed" x-text="currentItem.q"></p>
+          </div>
+        </div>
+
+        <!-- Answer -->
+        <div class="bg-white rounded-2xl p-5 shadow-sm mb-3">
+          <div class="flex items-start gap-3">
+            <span class="w-7 h-7 rounded-full bg-sky text-blue-500 flex items-center justify-center text-sm font-bold flex-shrink-0">A</span>
+            <p class="text-[14px] text-gray-600 leading-relaxed whitespace-pre-line" x-text="currentItem.a"></p>
+          </div>
+        </div>
+
+        <!-- Tags -->
+        <div class="flex flex-wrap gap-1 mb-4" x-show="currentItem.tags">
+          <template x-for="tag in currentItem.tags.split(',')" :key="tag">
+            <span class="px-2 py-0.5 bg-white border border-gray-200 rounded-full text-[10px] text-gray-500">#<span x-text="tag.trim()"></span></span>
+          </template>
+        </div>
+
+        <!-- Actions -->
+        <div class="bg-white rounded-2xl p-4 shadow-sm">
+          <!-- Status buttons -->
+          <div class="flex gap-2 mb-3">
+            <button
+              @click="setStatus('OK')"
+              :class="currentItem.status === 'OK' ? 'bg-green-500 text-white ring-2 ring-green-300' : 'bg-gray-50 text-gray-600 hover:bg-green-50'"
+              class="flex-1 py-3 rounded-xl text-sm font-medium transition-all active:scale-95"
+            >OK</button>
+            <button
+              @click="setStatus('要修正')"
+              :class="currentItem.status === '要修正' ? 'bg-yellow-500 text-white ring-2 ring-yellow-300' : 'bg-gray-50 text-gray-600 hover:bg-yellow-50'"
+              class="flex-1 py-3 rounded-xl text-sm font-medium transition-all active:scale-95"
+            >要修正</button>
+            <button
+              @click="setStatus('削除')"
+              :class="currentItem.status === '削除' ? 'bg-red-500 text-white ring-2 ring-red-300' : 'bg-gray-50 text-gray-600 hover:bg-red-50'"
+              class="flex-1 py-3 rounded-xl text-sm font-medium transition-all active:scale-95"
+            >削除</button>
+          </div>
+
+          <!-- Comment -->
+          <textarea
+            x-model="currentItem.comment"
+            @input.debounce.500ms="saveComment()"
+            placeholder="修正内容・削除理由をメモ（任意）"
+            rows="2"
+            class="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm bg-cream focus:outline-none focus:ring-2 focus:ring-coral/20 focus:border-coral/40 resize-none"
+          ></textarea>
+        </div>
+
+        <!-- Next button (big) -->
+        <button
+          @click="next()"
+          :disabled="currentIdxInList >= filteredItems.length - 1"
+          class="w-full mt-4 py-3.5 bg-coral text-white rounded-2xl text-sm font-medium hover:bg-coral-hover transition-all active:scale-[0.98] disabled:opacity-30 disabled:cursor-not-allowed"
+        >
+          次の質問へ →
+        </button>
+      </div>
+    </template>
+  </main>
+
+  <!-- Done state -->
+  <div x-show="!loading && !currentItem && filteredItems.length === 0" x-cloak class="max-w-xl mx-auto px-4 py-20 text-center">
+    <div class="text-5xl mb-4">🎉</div>
+    <p class="text-gray-700 text-lg font-medium mb-2">レビュー完了！</p>
+    <p class="text-gray-400 text-sm">全ての質問を確認しました</p>
+  </div>
+
+  <!-- Saving indicator -->
+  <div
+    x-show="saving"
+    x-cloak
+    x-transition
+    class="fixed bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 bg-gray-800 text-white text-xs rounded-full shadow-lg"
+  >保存中...</div>
+
+  <div
+    x-show="saved"
+    x-cloak
+    x-transition
+    class="fixed bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 bg-green-600 text-white text-xs rounded-full shadow-lg"
+  >保存しました</div>
+
+  <script>
+    const SHEET_ID = '1QCF8it56XPndWp00_mcQE1Ej0_48haZ-A55SqxnDbxc';
+    const SHEET_NAME = 'QA まとめ';
+    const GAS_WRITE_URL = 'https://script.google.com/macros/s/AKfycbxupvqoqpiiHBlaCy-sM_5sEpj9vfKG17O8U-oW9KmnlGC_uF2DyJE-cIRotWe_L0g/exec';
+
+    function loadSheetData() {
+      return new Promise((resolve, reject) => {
+        window.google = window.google || {};
+        window.google.visualization = window.google.visualization || {};
+        window.google.visualization.Query = window.google.visualization.Query || {};
+        window.google.visualization.Query.setResponse = function(resp) { resolve(resp); };
+        const script = document.createElement('script');
+        script.src = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
+        script.onerror = () => reject(new Error('Load failed'));
+        document.head.appendChild(script);
+      });
+    }
+
+    function reviewApp() {
+      return {
+        allItems: [],
+        filteredItems: [],
+        currentIdx: 0,
+        currentIdxInList: 0,
+        filter: 'unchecked',
+        reviewer: localStorage.getItem('qa-reviewer') || '',
+        loading: true,
+        saving: false,
+        saved: false,
+
+        get currentItem() {
+          return this.filteredItems[this.currentIdxInList] || null;
+        },
+        get totalCount() {
+          return this.allItems.length;
+        },
+        get checkedCount() {
+          return this.allItems.filter(i => i.status && i.status !== '未確認').length;
+        },
+        get progressPercent() {
+          return this.totalCount ? Math.round(this.checkedCount / this.totalCount * 100) : 0;
+        },
+
+        async init() {
+          try {
+            const gviz = await loadSheetData();
+            const rows = gviz.table.rows;
+            for (let i = 1; i < rows.length; i++) {
+              const c = rows[i].c;
+              if (!c[0] || !c[0].v) continue;
+              this.allItems.push({
+                rowNum: i + 1, // 1-indexed sheet row (header=row1, data starts row2)
+                q: c[0]?.v || '',
+                cat: c[1]?.v || '',
+                sub: c[2]?.v || '',
+                imp: String(c[3]?.v || '3'),
+                level: c[4]?.v || '',
+                tags: c[5]?.v || '',
+                title: c[6]?.v || '',
+                a: c[7]?.v || '',
+                status: c[8]?.v || '未確認',
+                comment: c[9]?.v || '',
+                checkedBy: c[10]?.v || '',
+              });
+            }
+            this.applyFilter();
+          } catch (e) {
+            console.error(e);
+          } finally {
+            this.loading = false;
+          }
+        },
+
+        applyFilter() {
+          if (this.filter === 'unchecked') {
+            this.filteredItems = this.allItems.filter(i => i.status === '未確認');
+          } else if (this.filter === 'fix') {
+            this.filteredItems = this.allItems.filter(i => i.status === '要修正');
+          } else if (this.filter === 'delete') {
+            this.filteredItems = this.allItems.filter(i => i.status === '削除');
+          } else {
+            this.filteredItems = [...this.allItems];
+          }
+          this.currentIdxInList = 0;
+        },
+
+        next() {
+          if (this.currentIdxInList < this.filteredItems.length - 1) {
+            this.currentIdxInList++;
+          }
+        },
+        prev() {
+          if (this.currentIdxInList > 0) {
+            this.currentIdxInList--;
+          }
+        },
+
+        async setStatus(status) {
+          if (!this.currentItem) return;
+          this.currentItem.status = status;
+          localStorage.setItem('qa-reviewer', this.reviewer);
+          await this.saveToSheet(this.currentItem);
+          // Auto-advance after OK
+          if (status === 'OK') {
+            setTimeout(() => {
+              if (this.filter === 'unchecked') {
+                // Remove from filtered list (it's no longer "未確認")
+                this.filteredItems = this.filteredItems.filter(i => i.status === '未確認');
+                if (this.currentIdxInList >= this.filteredItems.length) {
+                  this.currentIdxInList = Math.max(0, this.filteredItems.length - 1);
+                }
+              } else {
+                this.next();
+              }
+            }, 300);
+          }
+        },
+
+        async saveComment() {
+          if (!this.currentItem) return;
+          await this.saveToSheet(this.currentItem);
+        },
+
+        async saveToSheet(item) {
+          this.saving = true;
+          this.saved = false;
+          try {
+            // Write to sheet via GAS
+            const params = new URLSearchParams({
+              row: item.rowNum,
+              status: item.status || '未確認',
+              comment: item.comment || '',
+              reviewer: this.reviewer || '',
+            });
+            await fetch(GAS_WRITE_URL + '?' + params.toString(), { mode: 'no-cors' });
+          } catch (e) {
+            console.error('Save failed:', e);
+          } finally {
+            this.saving = false;
+            this.saved = true;
+            setTimeout(() => this.saved = false, 1500);
+          }
+        },
+      };
+    }
+  </script>
+</body>
+</html>
