@@ -18,6 +18,8 @@
   </script>
   <style>
     [x-cloak] { display: none !important; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     @keyframes slideLeft { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
     @keyframes pop { 0% { transform: scale(1); } 50% { transform: scale(1.08); } 100% { transform: scale(1); } }
     .slide-in { animation: slideLeft 0.25s ease-out; }
@@ -41,10 +43,38 @@
             <option value="all">すべて</option>
             <option value="fix">要修正のみ</option>
             <option value="delete">削除のみ</option>
+            <option value="ok">OK済み</option>
           </select>
           <!-- Reviewer name -->
           <input x-model="reviewer" placeholder="名前" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 w-20 bg-white">
         </div>
+      </div>
+      <!-- Search -->
+      <div class="mt-2 relative">
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+        </svg>
+        <input
+          x-model="search"
+          @input.debounce.300ms="applyFilter()"
+          placeholder="キーワードで検索..."
+          class="w-full pl-9 pr-8 py-2 rounded-xl border border-gray-200 bg-cream text-xs focus:outline-none focus:ring-2 focus:ring-coral/20 focus:border-coral/40"
+        >
+        <button x-show="search.length > 0" @click="search = ''; applyFilter()" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">&times;</button>
+      </div>
+      <!-- Category pills -->
+      <div class="mt-2 flex gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+        <template x-for="c in categories" :key="c.key">
+          <button
+            @click="activeCat = c.key; applyFilter()"
+            :class="activeCat === c.key
+              ? 'bg-coral text-white'
+              : 'bg-white text-gray-500 hover:bg-coral-light'"
+            class="flex-shrink-0 px-3 py-1 rounded-full text-[10px] font-medium transition-all active:scale-95"
+          >
+            <span x-text="c.emoji" class="mr-0.5"></span><span x-text="c.label"></span>
+          </button>
+        </template>
       </div>
       <!-- Progress bar -->
       <div class="mt-2 flex items-center gap-2">
@@ -237,6 +267,39 @@
       });
     }
 
+    const CATEGORIES = [
+      { key: 'all',    emoji: '📋', label: 'すべて' },
+      { key: 'tools',  emoji: '🖥', label: 'ツール' },
+      { key: 'course', emoji: '📚', label: '受講' },
+      { key: 'skill',  emoji: '🎙', label: 'スキル' },
+      { key: 'exam',   emoji: '📝', label: '課題・試験' },
+      { key: 'daw',    emoji: '🎛', label: '編集' },
+      { key: 'lesson', emoji: '👩‍🏫', label: 'レッスン' },
+      { key: 'biz',    emoji: '💼', label: '営業' },
+      { key: 'gear',   emoji: '🎤', label: '機材' },
+      { key: 'money',  emoji: '💰', label: '料金' },
+      { key: 'worry',  emoji: '💭', label: 'お悩み' },
+      { key: 'admin',  emoji: '📄', label: '手続き' },
+      { key: 'other',  emoji: '📌', label: 'その他' },
+    ];
+
+    function mapCat(cat) {
+      if (!cat) return 'other';
+      const c = cat.toLowerCase();
+      if (c.includes('ツール') || c.includes('機材・接続')) return 'tools';
+      if (c.includes('受講') || c.includes('録音環境')) return 'course';
+      if (c.includes('技術') || c.includes('表現')) return 'skill';
+      if (c.includes('課題') || c.includes('試験')) return 'exam';
+      if (c.includes('daw') || c.includes('編集')) return 'daw';
+      if (c.includes('レッスン') || c.includes('サポート')) return 'lesson';
+      if (c.includes('営業') || c.includes('仕事')) return 'biz';
+      if (c.includes('機材・購入') || c.includes('購入')) return 'gear';
+      if (c.includes('料金') || c.includes('マインド')) return 'money';
+      if (c.includes('お悩み') || c.includes('スクール活用')) return 'worry';
+      if (c.includes('事務')) return 'admin';
+      return 'other';
+    }
+
     function reviewApp() {
       return {
         allItems: [],
@@ -244,6 +307,9 @@
         currentIdx: 0,
         currentIdxInList: 0,
         filter: 'unchecked',
+        search: '',
+        activeCat: 'all',
+        categories: CATEGORIES,
         reviewer: localStorage.getItem('qa-reviewer') || '',
         loading: true,
         saving: false,
@@ -283,6 +349,8 @@
                 status: c[8]?.v || '未確認',
                 comment: c[9]?.v || '',
                 checkedBy: c[10]?.v || '',
+                _cat: mapCat(c[1]?.v || ''),
+                _search: `${c[0]?.v || ''} ${c[7]?.v || ''} ${c[5]?.v || ''} ${c[6]?.v || ''} ${c[2]?.v || ''}`.toLowerCase(),
               });
             }
             this.applyFilter();
@@ -294,15 +362,31 @@
         },
 
         applyFilter() {
+          let items = [...this.allItems];
+
+          // Status filter
           if (this.filter === 'unchecked') {
-            this.filteredItems = this.allItems.filter(i => i.status === '未確認');
+            items = items.filter(i => i.status === '未確認');
           } else if (this.filter === 'fix') {
-            this.filteredItems = this.allItems.filter(i => i.status === '要修正');
+            items = items.filter(i => i.status === '要修正');
           } else if (this.filter === 'delete') {
-            this.filteredItems = this.allItems.filter(i => i.status === '削除');
-          } else {
-            this.filteredItems = [...this.allItems];
+            items = items.filter(i => i.status === '削除');
+          } else if (this.filter === 'ok') {
+            items = items.filter(i => i.status === 'OK');
           }
+
+          // Category filter
+          if (this.activeCat !== 'all') {
+            items = items.filter(i => i._cat === this.activeCat);
+          }
+
+          // Search filter
+          if (this.search.trim()) {
+            const terms = this.search.toLowerCase().split(/\s+/).filter(Boolean);
+            items = items.filter(i => terms.every(t => i._search.includes(t)));
+          }
+
+          this.filteredItems = items;
           this.currentIdxInList = 0;
         },
 
