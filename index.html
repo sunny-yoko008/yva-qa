@@ -6,6 +6,7 @@
   <title>よくある質問 | YouVoice Academy</title>
   <link rel="icon" href="favicon.ico" type="image/x-icon">
   <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <script>
     tailwind.config = {
@@ -230,7 +231,7 @@
                 <div class="flex flex-wrap gap-1 mt-3 ml-9" x-show="item.tags">
                   <template x-for="tag in item.tags.split(',')" :key="tag">
                     <button @click="search = tag.trim(); onSearch()"
-                      class="tag-pill px-2 py-0.5 bg-gray-50 border border-gray-150 rounded-full text-gray-500 hover:bg-coral-light hover:text-coral hover:border-coral/30 cursor-pointer transition-all badge-text">
+                      class="tag-pill px-2 py-0.5 bg-gray-50 border border-gray-200 rounded-full text-gray-500 hover:bg-coral-light hover:text-coral hover:border-coral/30 cursor-pointer transition-all badge-text">
                       #<span x-text="tag.trim()"></span>
                     </button>
                   </template>
@@ -338,27 +339,35 @@
     }
 
     // Render answer text with auto media embedding
+    function escapeHtml(str) {
+      return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
     function renderAnswer(text) {
       if (!text) return '';
       const urlRegex = /(https?:\/\/[^\s<]+)/g;
       const lines = text.split('\n');
       return lines.map(line => {
-        return line.replace(urlRegex, (url) => {
-          // Only allow https
-          if (!url.startsWith('https://')) return url;
-          // YouTube
+        // Split line into URL and non-URL parts, escape non-URL parts
+        let result = '';
+        let lastIdx = 0;
+        line.replace(urlRegex, (url, offset) => {
+          result += escapeHtml(line.slice(lastIdx, offset));
+          lastIdx = offset + url.length;
+          if (!url.startsWith('https://')) { result += escapeHtml(url); return; }
+          const safeUrl = escapeHtml(url);
           const ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]+)/);
           if (ytMatch) {
-            return `<iframe src="https://www.youtube-nocookie.com/embed/${ytMatch[1]}" allowfullscreen loading="lazy"></iframe>`;
+            result += `<iframe src="https://www.youtube-nocookie.com/embed/${ytMatch[1]}" allowfullscreen loading="lazy"></iframe>`;
+          } else if (/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(url)) {
+            result += `<img src="${safeUrl}" alt="" loading="lazy">`;
+          } else {
+            const display = url.length > 50 ? escapeHtml(url.substring(0, 50)) + '...' : safeUrl;
+            result += `<a href="${safeUrl}" target="_blank" rel="noopener">${display}</a>`;
           }
-          // Image
-          if (/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(url)) {
-            return `<img src="${url}" alt="" loading="lazy">`;
-          }
-          // Regular link
-          const display = url.length > 50 ? url.substring(0, 50) + '...' : url;
-          return `<a href="${url}" target="_blank" rel="noopener">${display}</a>`;
         });
+        result += escapeHtml(line.slice(lastIdx));
+        return result;
       }).join('<br>');
     }
 
@@ -472,9 +481,9 @@
         },
 
         highlightText(text) {
-          if (!this.search.trim()) return text;
+          if (!this.search.trim()) return escapeHtml(text);
+          let result = escapeHtml(text);
           const terms = this.search.split(/\s+/).filter(Boolean);
-          let result = text;
           terms.forEach(term => {
             const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             result = result.replace(new RegExp(`(${escaped})`, 'gi'), '<mark>$1</mark>');
