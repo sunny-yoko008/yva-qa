@@ -234,19 +234,72 @@
     <p class="text-gray-400 text-sm">全ての質問を確認しました</p>
   </div>
 
+  <!-- FAB: + button -->
+  <button
+    @click="showAddModal = true"
+    class="fixed bottom-6 right-5 w-14 h-14 bg-coral text-white rounded-full shadow-lg flex items-center justify-center hover:bg-coral-hover transition-all active:scale-90 z-50"
+    title="質問を追加"
+  >
+    <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+  </button>
+
+  <!-- Add QA modal -->
+  <div x-show="showAddModal" x-cloak @click.self="showAddModal = false"
+    class="fixed inset-0 z-[100] bg-black/30 backdrop-blur-sm flex items-end sm:items-center justify-center"
+    x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+    x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0">
+    <div x-show="showAddModal"
+      x-transition:enter="transition ease-out duration-200" x-transition:enter-start="translate-y-full sm:scale-95 sm:translate-y-0" x-transition:enter-end="translate-y-0 sm:scale-100"
+      class="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-lg max-h-[85vh] overflow-y-auto p-5 pb-8">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-bold text-sm text-gray-800">質問を追加</h3>
+        <button @click="showAddModal = false" class="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-400">&times;</button>
+      </div>
+      <div class="space-y-3">
+        <div>
+          <label class="text-[10px] text-gray-400 font-medium block mb-1">大カテゴリ</label>
+          <select x-model="addForm.cat" class="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs bg-white">
+            <option value="">選択してください</option>
+            <template x-for="cat in addCategories" :key="cat">
+              <option :value="cat" x-text="cat"></option>
+            </template>
+          </select>
+        </div>
+        <div>
+          <label class="text-[10px] text-gray-400 font-medium block mb-1">中カテゴリ</label>
+          <input x-model="addForm.sub" placeholder="例: Audacity" class="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs">
+        </div>
+        <div>
+          <label class="text-[10px] text-gray-400 font-medium block mb-1">質問</label>
+          <textarea x-model="addForm.q" rows="2" placeholder="質問内容を入力..." class="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs resize-none"></textarea>
+        </div>
+        <div>
+          <label class="text-[10px] text-gray-400 font-medium block mb-1">回答</label>
+          <textarea x-model="addForm.a" rows="4" placeholder="回答を入力..." class="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs resize-none"></textarea>
+        </div>
+        <button @click="submitAdd()" :disabled="!addForm.q || !addForm.a || addingItem"
+          :class="(!addForm.q || !addForm.a || addingItem) ? 'bg-gray-300' : 'bg-coral hover:bg-coral-hover'"
+          class="w-full py-3 text-white rounded-xl text-sm font-medium transition-all active:scale-[0.98]">
+          <span x-show="!addingItem">追加する</span>
+          <span x-show="addingItem">追加中...</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Saving indicator -->
   <div
     x-show="saving"
     x-cloak
     x-transition
-    class="fixed bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 bg-gray-800 text-white text-xs rounded-full shadow-lg"
+    class="fixed bottom-20 left-1/2 -translate-x-1/2 px-4 py-2 bg-gray-800 text-white text-xs rounded-full shadow-lg z-40"
   >保存中...</div>
 
   <div
     x-show="saved"
     x-cloak
     x-transition
-    class="fixed bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 bg-green-600 text-white text-xs rounded-full shadow-lg"
+    class="fixed bottom-20 left-1/2 -translate-x-1/2 px-4 py-2 bg-green-600 text-white text-xs rounded-full shadow-lg z-40"
   >保存しました</div>
 
   <script>
@@ -267,36 +320,24 @@
       });
     }
 
-    const CATEGORIES = [
-      { key: 'all',    emoji: '📋', label: 'すべて' },
-      { key: 'tools',  emoji: '🖥', label: 'ツール' },
-      { key: 'course', emoji: '📚', label: '受講' },
-      { key: 'skill',  emoji: '🎙', label: 'スキル' },
-      { key: 'exam',   emoji: '📝', label: '課題・試験' },
-      { key: 'daw',    emoji: '🎛', label: '編集' },
-      { key: 'lesson', emoji: '👩‍🏫', label: 'レッスン' },
-      { key: 'biz',    emoji: '💼', label: '営業' },
-      { key: 'gear',   emoji: '🎤', label: '機材' },
-      { key: 'money',  emoji: '💰', label: '料金' },
-      { key: 'worry',  emoji: '💭', label: 'お悩み' },
-      { key: 'admin',  emoji: '📄', label: '手続き' },
-      { key: 'other',  emoji: '📌', label: 'その他' },
+    // ===== CATEGORY CONFIG (same as index.html - edit to change tabs) =====
+    const CATEGORY_CONFIG = [
+      { key: 'all', emoji: '', label: 'すべて', match: [] },
+      { key: 'tools', emoji: '', label: 'ツール・機材', match: ['ツール', '機材・接続', '機材・購入'] },
+      { key: 'course', emoji: '', label: '受講・レッスン', match: ['受講', 'レッスン', 'スクール活用'] },
+      { key: 'tech', emoji: '', label: '技術・編集', match: ['技術', '表現', 'DAW', '編集', '録音環境'] },
+      { key: 'exam', emoji: '', label: '課題・試験', match: ['課題', '試験'] },
+      { key: 'biz', emoji: '', label: '仕事・営業', match: ['営業', '仕事', 'お悩み'] },
+      { key: 'other', emoji: '', label: 'その他', match: [] },
     ];
+    const CATEGORIES = CATEGORY_CONFIG;
 
-    function mapCat(cat) {
-      if (!cat) return 'other';
-      const c = cat.toLowerCase();
-      if (c.includes('ツール') || c.includes('機材・接続')) return 'tools';
-      if (c.includes('受講') || c.includes('録音環境')) return 'course';
-      if (c.includes('技術') || c.includes('表現')) return 'skill';
-      if (c.includes('課題') || c.includes('試験')) return 'exam';
-      if (c.includes('daw') || c.includes('編集')) return 'daw';
-      if (c.includes('レッスン') || c.includes('サポート')) return 'lesson';
-      if (c.includes('営業') || c.includes('仕事')) return 'biz';
-      if (c.includes('機材・購入') || c.includes('購入')) return 'gear';
-      if (c.includes('料金') || c.includes('マインド')) return 'money';
-      if (c.includes('お悩み') || c.includes('スクール活用')) return 'worry';
-      if (c.includes('事務')) return 'admin';
+    function mapCat(catStr) {
+      if (!catStr) return 'other';
+      for (const cfg of CATEGORY_CONFIG) {
+        if (cfg.key === 'all' || cfg.key === 'other') continue;
+        if (cfg.match.some(m => catStr.includes(m))) return cfg.key;
+      }
       return 'other';
     }
 
@@ -315,6 +356,9 @@
         saving: false,
         saved: false,
         editing: false,
+        showAddModal: false,
+        addingItem: false,
+        addForm: { cat: '', sub: '', q: '', a: '' },
 
         get currentItem() {
           return this.filteredItems[this.currentIdxInList] || null;
@@ -327,6 +371,38 @@
         },
         get progressPercent() {
           return this.totalCount ? Math.round(this.checkedCount / this.totalCount * 100) : 0;
+        },
+
+        get addCategories() {
+          const cats = new Set();
+          for (const item of this.allItems) {
+            if (item.cat) cats.add(item.cat);
+          }
+          return [...cats].sort();
+        },
+
+        async submitAdd() {
+          if (!this.addForm.q || !this.addForm.a) return;
+          this.addingItem = true;
+          try {
+            const params = new URLSearchParams({
+              action: 'add',
+              q: this.addForm.q,
+              a: this.addForm.a,
+              cat: this.addForm.cat,
+              sub: this.addForm.sub,
+              reviewer: this.reviewer,
+            });
+            await fetch(GAS_WRITE_URL + '?' + params.toString(), { mode: 'no-cors' });
+            this.showAddModal = false;
+            this.addForm = { cat: '', sub: '', q: '', a: '' };
+            this.saved = true;
+            setTimeout(() => this.saved = false, 1500);
+          } catch (e) {
+            console.error('Add failed:', e);
+          } finally {
+            this.addingItem = false;
+          }
         },
 
         async init() {
