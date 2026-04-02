@@ -356,10 +356,30 @@
           lastIdx = offset + url.length;
           if (!url.startsWith('https://')) { result += escapeHtml(url); return; }
           const safeUrl = escapeHtml(url);
+          // YouTube
           const ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]+)/);
           if (ytMatch) {
             result += `<iframe src="https://www.youtube-nocookie.com/embed/${ytMatch[1]}" allowfullscreen loading="lazy"></iframe>`;
-          } else if (/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(url)) {
+          }
+          // Google Drive image link → direct image URL
+          else if (/drive\.google\.com\/file\/d\//.test(url)) {
+            const driveMatch = url.match(/\/file\/d\/([\w-]+)/);
+            if (driveMatch) {
+              result += `<img src="https://drive.google.com/uc?export=view&id=${driveMatch[1]}" alt="" loading="lazy">`;
+            } else {
+              result += `<a href="${safeUrl}" target="_blank" rel="noopener">${safeUrl}</a>`;
+            }
+          }
+          else if (/drive\.google\.com\/open\?id=/.test(url)) {
+            const idMatch = url.match(/[?&]id=([\w-]+)/);
+            if (idMatch) {
+              result += `<img src="https://drive.google.com/uc?export=view&id=${idMatch[1]}" alt="" loading="lazy">`;
+            } else {
+              result += `<a href="${safeUrl}" target="_blank" rel="noopener">${safeUrl}</a>`;
+            }
+          }
+          // Direct image URL
+          else if (/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(url)) {
             result += `<img src="${safeUrl}" alt="" loading="lazy">`;
           } else {
             const display = url.length > 50 ? escapeHtml(url.substring(0, 50)) + '...' : safeUrl;
