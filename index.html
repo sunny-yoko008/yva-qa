@@ -203,7 +203,7 @@
       <!-- QA List -->
       <div x-show="!loading" x-cloak class="space-y-2">
         <template x-for="(item, idx) in filtered" :key="item.id">
-          <div class="qa-card bg-white rounded-2xl shadow-sm overflow-hidden fade-up" :style="'animation-delay: ' + Math.min(idx * 30, 300) + 'ms'">
+          <div :id="'qa-' + item.id" class="qa-card bg-white rounded-2xl shadow-sm overflow-hidden fade-up" :style="'animation-delay: ' + Math.min(idx * 30, 300) + 'ms'">
             <!-- Question -->
             <button @click="toggleItem(item)" class="w-full text-left px-4 py-3.5 flex items-start gap-3">
               <span class="w-6 h-6 rounded-full bg-coral-light text-coral flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">Q</span>
@@ -532,13 +532,21 @@
         },
 
         scrollToAndOpen(item) {
-          this.filtered.forEach(i => i._open = false);
-          item._open = true;
-          if (!this.filtered.find(i => i.id === item.id)) {
-            this.search = ''; this.activeCat = 'all'; this.activeSub = null; this.filterItems();
-            this.$nextTick(() => { const t = this.filtered.find(i => i.id === item.id); if (t) t._open = true; });
-          }
-          window.scrollTo({ top: 0, behavior: 'smooth' });
+          // Close all
+          this.allItems.forEach(i => i._open = false);
+          // Reset filters so target is visible
+          this.search = ''; this.activeCat = 'all'; this.activeSub = null;
+          this.filterItems();
+          // Open target after DOM update
+          this.$nextTick(() => {
+            const target = this.filtered.find(i => i.id === item.id);
+            if (target) target._open = true;
+            // Scroll to the element
+            this.$nextTick(() => {
+              const el = document.getElementById('qa-' + item.id);
+              if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            });
+          });
         },
       };
     }
